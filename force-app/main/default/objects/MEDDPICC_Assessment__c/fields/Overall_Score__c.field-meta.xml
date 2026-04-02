@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Overall_Score__c</fullName>
+    <description>Average of all 8 MEDDPICC dimension scores (0-10 scale)</description>
+    <formula>(
+        BLANKVALUE(Score_Metrics__c, 0) +
+        BLANKVALUE(Score_Economic_Buyer__c, 0) +
+        BLANKVALUE(Score_Decision_Criteria__c, 0) +
+        BLANKVALUE(Score_Decision_Process__c, 0) +
+        BLANKVALUE(Score_Paper_Process__c, 0) +
+        BLANKVALUE(Score_Identify_Pain__c, 0) +
+        BLANKVALUE(Score_Champion__c, 0) +
+        BLANKVALUE(Score_Competition__c, 0)
+    ) / 8</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <label>Overall Score</label>
+    <precision>18</precision>
+    <required>false</required>
+    <scale>1</scale>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Number</type>
+</CustomField>

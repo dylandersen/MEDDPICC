@@ -1,0 +1,277 @@
+<template>
+  <lightning-card>
+    <div slot="title">
+      <div class="custom-header">
+        <div class="header-icon-container">
+          <lightning-icon icon-name="utility:strategy" size="small" class="header-icon"></lightning-icon>
+        </div>
+        <div class="title-container">
+          <h2 class="card-title">MEDDPICC Insights</h2>
+          <div class="powered-by">Powered by <b>Agentforce</b> &middot; Synced from Clari</div>
+        </div>
+      </div>
+    </div>
+
+    <div slot="actions">
+      <div class="actions-row">
+        <div class="model-picker-wrap">
+          <button class={modelBtnClass} onclick={handleModelPickerToggle} title="Switch AI model" aria-label="Switch AI model">
+            <img src={selectedModelLogo} alt="Selected model" class={selectedModelLogoClass} />
+          </button>
+          <template lwc:if={isModelPickerOpen}>
+            <div class="model-picker-backdrop" onclick={handleModelPickerClose}></div>
+            <div class="model-picker-popover">
+              <div class="model-picker-header">Choose Model</div>
+              <template for:each={modelOptions} for:item="m">
+                <button key={m.id} class={m.itemClass} data-model-id={m.id} onclick={handleModelSelect} aria-label={m.label}>
+                  <span class="model-item-check">
+                    <template lwc:if={m.isActive}>
+                      <svg viewBox="0 0 16 16" fill="none" class="check-icon" aria-hidden="true">
+                        <path d="M3 8l3.5 3.5L13 4.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    </template>
+                  </span>
+                  <img src={m.logo} alt="" class={m.logoClass} aria-hidden="true" />
+                  <span class="model-item-label">{m.label}</span>
+                  <template lwc:if={m.premium}>
+                    <span class="model-premium-badge">$</span>
+                  </template>
+                </button>
+              </template>
+            </div>
+          </template>
+        </div>
+        <template lwc:if={hasAssessment}>
+          <lightning-button
+            label={analyzeButtonLabel}
+            title="Analyze MEDDPICC data with AI"
+            onclick={handleAnalyze}
+            disabled={isAnalyzing}
+            variant="brand"
+            class="analyze-button"
+          ></lightning-button>
+        </template>
+      </div>
+    </div>
+
+    <div class="card-body">
+      <!-- Initial data loading -->
+      <template lwc:if={isLoadingData}>
+        <div class="analysis-loading-container">
+          <img src={agentforceIcon} alt="Agentforce" class="agentforce-icon" />
+          <div class="spinner"></div>
+          <p class={loadingTextClass}>{currentDataLoadingMessage}</p>
+        </div>
+      </template>
+
+      <!-- No assessment data at all -->
+      <template lwc:if={showEmptyState}>
+        <div class="slds-text-align_center slds-p-around_large">
+          <div class="empty-icon-container">
+            <lightning-icon icon-name="utility:strategy" size="large" class="empty-icon"></lightning-icon>
+          </div>
+          <p class="empty-state-text slds-m-top_medium">No MEDDPICC assessments found for this account.</p>
+          <p class="empty-state-subtext slds-m-top_x-small">MEDDPICC data will appear here once synced from Clari.</p>
+        </div>
+      </template>
+
+      <!-- Error -->
+      <template lwc:if={hasError}>
+        <div class="error-box">
+          <p class="slds-text-color_error">{errorMessage}</p>
+        </div>
+      </template>
+
+      <!-- Main content: data loaded -->
+      <template lwc:if={showContent}>
+        <!-- Opportunity Picker (shown when multiple assessments exist) -->
+        <template lwc:if={hasMultipleAssessments}>
+          <div class="opp-picker-row">
+            <div class="opp-picker-left">
+              <div class="opp-picker-label-row">
+                <div class="opp-icon-circle">
+                  <lightning-icon icon-name="utility:opportunity" size="xx-small" class="opp-icon-white"></lightning-icon>
+                </div>
+                <span class="opp-picker-label">Opportunity</span>
+                <span class="opp-picker-count">{assessmentCountLabel}</span>
+              </div>
+              <lightning-combobox
+                label="Opportunity with MEDDPICC Assessment"
+                value={selectedAssessmentId}
+                options={opportunityPickerOptions}
+                onchange={handleOpportunityChange}
+                variant="label-hidden"
+                placeholder="Select an opportunity…"
+                class="opp-picker-combo"
+              ></lightning-combobox>
+            </div>
+            <div class="opp-picker-right">
+              <div class="opp-stats">
+                <div class="opp-stat">
+                  <span class="opp-stat-number opp-stat-avg">{avgScore}</span>
+                  <span class="opp-stat-label">Avg Score</span>
+                </div>
+                <div class="opp-stat-divider"></div>
+                <div class="opp-stat">
+                  <span class="opp-stat-number opp-stat-strong">{strongCount}</span>
+                  <span class="opp-stat-label">Strong</span>
+                </div>
+                <div class="opp-stat-divider"></div>
+                <div class="opp-stat">
+                  <span class="opp-stat-number opp-stat-moderate">{moderateCount}</span>
+                  <span class="opp-stat-label">Moderate</span>
+                </div>
+                <div class="opp-stat-divider"></div>
+                <div class="opp-stat">
+                  <span class="opp-stat-number opp-stat-risk">{atRiskCount}</span>
+                  <span class="opp-stat-label">At Risk</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Assessment header: score ring + details -->
+        <div class="assessment-header">
+          <div class="score-ring-container">
+            <svg class="score-ring-svg" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="54" fill="none" stroke="#e5e5e5" stroke-width="8"/>
+              <circle cx="60" cy="60" r="54" fill="none"
+                stroke={ringStrokeColor} stroke-width="8"
+                stroke-linecap="round"
+                stroke-dasharray="339.292"
+                stroke-dashoffset={overallDashOffset}
+                transform="rotate(-90 60 60)"/>
+            </svg>
+            <div class="score-ring-text">
+              <span class="score-ring-number">{overallScore}</span>
+              <span class="score-ring-label">{overallScoreLabel}</span>
+            </div>
+          </div>
+
+          <div class="assessment-meta">
+            <!-- Opportunity name (primary info) -->
+            <template lwc:if={opportunityName}>
+              <div class="meta-primary">
+                <div class="meta-icon-circle meta-icon-circle--opp">
+                  <lightning-icon icon-name="utility:opportunity" size="xx-small" class="meta-icon-white"></lightning-icon>
+                </div>
+                <template lwc:if={hasOpportunityId}>
+                  <a class="meta-opp-link" href="#" onclick={handleNavigateToOpportunity} title="Open Opportunity">{opportunityName}</a>
+                </template>
+                <template lwc:else>
+                  <span class="meta-opp-name">{opportunityName}</span>
+                </template>
+              </div>
+            </template>
+
+            <!-- Assessment record + date (secondary row) -->
+            <div class="meta-secondary">
+              <template lwc:if={hasAssessmentId}>
+                <div class="meta-icon-circle meta-icon-circle--assess">
+                  <lightning-icon icon-name="utility:strategy" size="xx-small" class="meta-icon-white"></lightning-icon>
+                </div>
+                <a class="meta-assess-link" href="#" onclick={handleNavigateToAssessment} title="Open MEDDPICC Assessment">
+                  {assessmentRecordName}
+                </a>
+                <span class="meta-sep">&middot;</span>
+              </template>
+              <template lwc:if={assessmentDate}>
+                <span class="meta-date">{assessmentDate}</span>
+              </template>
+            </div>
+
+            <!-- Clari sync row -->
+            <template lwc:if={clariSyncInfo}>
+              <div class="meta-clari-row">
+                <img src={clariLogo} alt="Clari" class="clari-logo-tiny" />
+                <span class="meta-clari-text">{clariSyncInfo}</span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Compact 2-column dimension grid -->
+        <div class="dimensions-grid">
+          <template for:each={dimensions} for:item="dim">
+            <div key={dim.key} class="dim-cell" data-key={dim.key} onclick={handleDimensionToggle}>
+              <div class="dim-top">
+                <span class="dim-label">{dim.label}</span>
+                <span class={dim.scoreClass}>{dim.score}</span>
+              </div>
+              <div class="score-bar-track">
+                <div class={dim.barClass} style={dim.barStyle}></div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Expanded dimension detail (outside grid) -->
+        <template lwc:if={expandedDimensionNote}>
+          <div class="dimension-detail">
+            <div class="detail-header">
+              <lightning-icon icon-name={expandedDimensionIcon} size="xx-small" class="detail-icon"></lightning-icon>
+              <span class="detail-label">{expandedDimensionLabel}</span>
+            </div>
+            <p class="dimension-note">{expandedDimensionNote}</p>
+          </div>
+        </template>
+
+        <!-- Pre-analysis CTA (before user clicks Analyze) -->
+        <template lwc:if={showPreAnalysisCta}>
+          <div class="pre-analysis-cta">
+            <img src={agentforceIcon} alt="Agentforce" class="cta-agentforce-icon" />
+            <p class="cta-heading">Ready to analyze this deal?</p>
+            <p class="cta-body">
+              Click <b>✨ Analyze</b> to get a strategic summary of strengths, risks, and recommended next steps powered by Agentforce.
+            </p>
+          </div>
+        </template>
+
+        <!-- AI Analyzing State -->
+        <template lwc:if={isAnalyzing}>
+          <div class="analysis-loading-container">
+            <img src={agentforceIcon} alt="Agentforce" class="agentforce-icon" />
+            <div class="spinner"></div>
+            <p class={loadingTextClass}>{currentLoadingMessage}</p>
+          </div>
+        </template>
+
+        <!-- AI Analysis Result -->
+        <template lwc:if={showAnalysisResult}>
+          <div class="analysis-section">
+            <div class="analysis-header">
+              <img src={agentforceIcon} alt="Agentforce" class="analysis-agentforce-icon" />
+              <h3 class="analysis-title">Agentforce's Strategic Analysis</h3>
+            </div>
+            <div class="analysis-body">
+              <lightning-formatted-rich-text value={aiAnalysis}></lightning-formatted-rich-text>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+              <button class="action-btn action-btn--email" onclick={handleDraftEmail} aria-label={draftEmailLabel}>
+                <lightning-icon icon-name="utility:email" size="xx-small" class="action-btn-icon action-btn-icon--email"></lightning-icon>
+                <span>{draftEmailLabel}</span>
+              </button>
+              <button class="action-btn action-btn--agentforce" onclick={handleAskAgentforce} aria-label="Ask Agentforce">
+                <img src={agentforceIcon} alt="" class="action-btn-astro" aria-hidden="true" />
+                <span>Ask Agentforce</span>
+              </button>
+            </div>
+
+            <div class="ai-disclaimer" role="status">
+              <div class="disclaimer-row">
+                <lightning-icon icon-name="utility:info" size="x-small" class="disclaimer-icon"></lightning-icon>
+                <p class="disclaimer-text">
+                  Agentforce uses generative AI, which can include inaccurate or
+                  harmful responses. Review the output for accuracy before taking action.
+                </p>
+              </div>
+            </div>
+          </div>
+        </template>
+      </template>
+    </div>
+  </lightning-card>
+</template>
