@@ -171,16 +171,23 @@ The `meddpiccInsights` LWC is configured to appear only on **Account Record Page
 
 ---
 
-### 4. Clari Setup
+### 4. Clari Integration
 
-MEDDPICC Insights consumes data that **Clari Copilot writes** into Salesforce. This project does not implement the sync itself — it reads from `MEDDPICC_Assessment__c` records that Clari creates and maintains.
+There are two ways to get Clari MEDDPICC data into Salesforce: the **Clari Align native connector** (no code, recommended for most orgs) and the **Clari Copilot REST API** (for custom pipelines or scheduled sync jobs). Both paths ultimately write into `MEDDPICC_Assessment__c`.
 
-To configure the Clari side:
+---
 
-1. In Clari, go to **Settings → Salesforce Integration**
-2. Enable **MEDDPICC Sync** and map Clari's MEDDPICC fields to the corresponding `MEDDPICC_Assessment__c` fields in this schema:
+#### Path A — Clari Align Native Salesforce Connector (Recommended)
 
-| Clari MEDDPICC Field | Salesforce Field API Name | Type |
+Clari Align has a built-in Salesforce integration that can map workspace fields directly onto Salesforce Opportunity fields and push activity as Salesforce Tasks. For full setup details, see the [Clari Align + Salesforce integration guide](https://community.clari.com/align-73/integrating-align-with-salesforce-852).
+
+**Field mapping setup:**
+
+1. In Clari, go to **Align → Organization Settings → Field Mapping**
+2. Click **+ Add Mapping** for each MEDDPICC dimension
+3. Map the Align workspace field to the corresponding `MEDDPICC_Assessment__c` field:
+
+| Align Workspace Field | Salesforce Field API Name | Type |
 |---|---|---|
 | Metrics (notes) | `Metrics__c` | LongTextArea |
 | Metrics (score) | `Score_Metrics__c` | Number (0–10) |
@@ -198,16 +205,115 @@ To configure the Clari side:
 | Champion (score) | `Score_Champion__c` | Number (0–10) |
 | Competition (notes) | `Competition__c` | LongTextArea |
 | Competition (score) | `Score_Competition__c` | Number (0–10) |
-| Opportunity link | `Opportunity__c` | Lookup(Opportunity) |
-| Account link | `Account__c` | Master-Detail(Account) |
-| Sync timestamp | `Last_Clari_Sync__c` | DateTime |
-| Synced flag | `Synced_From_Clari__c` | Checkbox |
 
-3. Set the **parent Account** as the primary relationship (Clari should populate `Account__c` via the linked Opportunity's account)
-4. Configure sync frequency — real-time or scheduled depending on your Clari plan
-5. Test with a single deal to confirm records appear in Salesforce before rolling out broadly
+4. Click **Publish Changes**. Field syncs take up to 15 minutes; use **Run Full Sync Now** to force an immediate push.
+5. Set the **parent Account** relationship: Clari should populate `Account__c` from the linked Opportunity's account (`AccountId`).
+6. Enable **CRM Activity** if you want Clari Align workspace activity (buyer/seller engagement events) to also appear as completed Tasks on the Salesforce Opportunity.
 
-> **No Clari yet?** You can manually create `MEDDPICC_Assessment__c` records for testing. Use the anonymous Apex scripts in `scripts/apex/` as templates (update the hardcoded Account ID to one in your org first).
+> **Tip:** Configure the `MAP_Status__c` picklist field on Opportunity (values: `ON_TRACK`, `LATE`, `ARCHIVED`) to surface Align plan status directly in Salesforce and the Clari Opportunity Grid. See the [Align community guide](https://community.clari.com/align-73/integrating-align-with-salesforce-852) for exact setup steps.
+
+---
+
+#### Path B — Clari Copilot REST API (Custom / Scheduled Sync)
+
+If you need more control — polling on a schedule, pulling call intelligence alongside MEDDPICC scores, or building a custom middleware — use the [Clari Copilot REST API](https://api-doc.copilot.clari.com/).
+
+**Authentication**
+
+Every request requires two headers:
+
+```http
+X-Api-Key: <your-api-key>
+X-Api-Password: <your-api-password>
+```
+
+Obtain both from your Clari admin (**Settings → API**). Rate limits: **10 requests/second**, **100,000 requests/week** (week resets Sunday 00:00 UTC).
+
+**Key endpoints for this integration**
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/calls` | GET | List calls with linked deal/account CRM IDs |
+| `/call-details` | GET | Full transcript, AI summary, competitor sentiments |
+| `/get-deal` | GET | Opportunity data by Salesforce `crm_id` |
+| `/update-deal` | PUT | Write custom fields back to Clari from Salesforce |
+
+**Linking Clari deals to Salesforce records**
+
+Clari uses `crm_id` as its foreign key to Salesforce. A Clari deal's `crm_id` is the Salesforce **Opportunity ID** (`006...`). The `account_crm_id` maps to the Salesforce **Account ID** (`001...`). Use these to join records when writing into `MEDDPICC_Assessment__c`.
+
+**Pulling deal data**
+
+```bash
+# Fetch a Clari deal by its Salesforce Opportunity ID
+curl -X GET "https://rest-api.copilot.clari.com/get-deal?id=006Hu00000EXAMPLE" \
+  -H "X-Api-Key: YOUR_KEY" \
+  -H "X-Api-Password: YOUR_PASSWORD"
+```
+
+The response includes `custom_fields` — a key-value array where you can store MEDDPICC notes and scores if your Clari instance is configured to capture them there.
+
+**Pulling call intelligence to populate Competition and Champion**
+
+The `/call-details` endpoint returns `competitor_sentiments` and `summary.key_action_items` — data that maps naturally into the Competition and Champion MEDDPICC dimensions:
+
+```bash
+curl -X GET "https://rest-api.copilot.clari.com/call-details?id=CALL_ID" \
+  -H "X-Api-Key: YOUR_KEY" \
+  -H "X-Api-Password: YOUR_PASSWORD"
+```
+
+Response fields of interest:
+
+```json
+{
+  "competitor_sentiments": [
+    { "competitor_name": "...", "sentiment": "...", "reasoning": "..." }
+  ],
+  "summary": {
+    "full_summary": "...",
+    "key_action_items": [
+      { "action_item": "...", "speaker_name": "..." }
+    ]
+  }
+}
+```
+
+**Listing calls for an account**
+
+Use the `filterTimeGt`/`filterTimeLt` query parameters combined with `crm_info.account_id` matching to pull all calls for a given account over a time window:
+
+```bash
+curl -X GET "https://rest-api.copilot.clari.com/calls?filterTimeGt=2026-01-01T00:00:00Z&includePagination=false" \
+  -H "X-Api-Key: YOUR_KEY" \
+  -H "X-Api-Password: YOUR_PASSWORD"
+```
+
+Each call in the response includes `crm_info.account_id` and `crm_info.deal_id` for joining back to Salesforce.
+
+**Writing to `MEDDPICC_Assessment__c` from the API**
+
+Once you have Clari deal and call data, write it to Salesforce using any standard mechanism — Salesforce REST API, a Scheduled Apex job, MuleSoft, or a serverless function. Set `Synced_From_Clari__c = true` and `Last_Clari_Sync__c = DateTime.now()` on every upsert so the LWC badge renders correctly.
+
+Example upsert pattern using the Salesforce REST API:
+
+```http
+PATCH /services/data/v65.0/sobjects/MEDDPICC_Assessment__c/Opportunity__c/<OPP_ID>
+Content-Type: application/json
+
+{
+  "Account__c": "001Hu000...",
+  "Opportunity__c": "006Hu000...",
+  "Metrics__c": "...",
+  "Score_Metrics__c": 8,
+  "Competition__c": "...",
+  "Score_Competition__c": 5,
+  "Synced_From_Clari__c": true,
+  "Last_Clari_Sync__c": "2026-04-02T12:00:00Z"
+}
+```
+
+> Use `Opportunity__c` as the external ID field on the PATCH to upsert (one assessment per opportunity). This requires the field to be marked as an external ID in Salesforce — update the field metadata accordingly if building a custom sync.
 
 ---
 
@@ -330,4 +436,4 @@ MEDDPICC/
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+MIT © 2026 Dylan Andersen — see [LICENSE](LICENSE) for details.
