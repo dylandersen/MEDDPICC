@@ -1,6 +1,5 @@
 @IsTest
 private class MeddpiccAnalysisControllerTest {
-
     @TestSetup
     static void setup() {
         Account acct = new Account(Name = 'Test MEDDPICC Account', Industry = 'Technology');
@@ -46,8 +45,7 @@ private class MeddpiccAnalysisControllerTest {
         Account acct = [SELECT Id FROM Account WHERE Name = 'Test MEDDPICC Account' LIMIT 1];
 
         Test.startTest();
-        MeddpiccAnalysisController.MeddpiccResult result =
-            MeddpiccAnalysisController.getMeddpiccData(acct.Id);
+        MeddpiccAnalysisController.MeddpiccResult result = MeddpiccAnalysisController.getMeddpiccData(acct.Id);
         Test.stopTest();
 
         System.assertEquals('Test MEDDPICC Account', result.accountName, 'Account name should match');
@@ -68,8 +66,7 @@ private class MeddpiccAnalysisControllerTest {
         insert emptyAcct;
 
         Test.startTest();
-        MeddpiccAnalysisController.MeddpiccResult result =
-            MeddpiccAnalysisController.getMeddpiccData(emptyAcct.Id);
+        MeddpiccAnalysisController.MeddpiccResult result = MeddpiccAnalysisController.getMeddpiccData(emptyAcct.Id);
         Test.stopTest();
 
         System.assertEquals('Empty Account', result.accountName);
@@ -82,8 +79,11 @@ private class MeddpiccAnalysisControllerTest {
         insert emptyAcct;
 
         Test.startTest();
-        MeddpiccAnalysisController.MeddpiccResult result =
-            MeddpiccAnalysisController.analyzeMeddpicc(emptyAcct.Id, null);
+        MeddpiccAnalysisController.MeddpiccResult result = MeddpiccAnalysisController.analyzeMeddpicc(
+            emptyAcct.Id,
+            null,
+            null
+        );
         Test.stopTest();
 
         System.assertNotEquals(null, result.error, 'Should return error for no assessments');

@@ -10,12 +10,12 @@ import CLAUDE_LOGO from '@salesforce/resourceUrl/Claude';
 import CLARI_LOGO from '@salesforce/resourceUrl/clari';
 
 const MODELS = [
-  { id: 'sfdc_ai__DefaultVertexAIGemini30Flash',          label: 'Gemini Flash 3.0', logoKey: 'gemini', premium: false },
-  { id: 'sfdc_ai__DefaultVertexAIGeminiPro30',            label: 'Gemini Pro 3.0',   logoKey: 'gemini', premium: false },
-  { id: 'sfdc_ai__DefaultGPT5',                           label: 'GPT-5',            logoKey: 'openai', premium: false },
-  { id: 'sfdc_ai__DefaultGPT52',                          label: 'GPT-5.2',          logoKey: 'openai', premium: false },
-  { id: 'sfdc_ai__DefaultBedrockAnthropicClaude45Sonnet', label: 'Sonnet 4.5',       logoKey: 'claude', premium: false },
-  { id: 'sfdc_ai__DefaultBedrockAnthropicClaude45Opus',   label: 'Opus 4.5',         logoKey: 'claude', premium: true  }
+  { id: 'sfdc_ai__DefaultVertexAIGemini31FlashLite', label: 'Gemini 3.1 Flash Lite', logoKey: 'gemini', premium: false },
+  { id: 'sfdc_ai__DefaultVertexAIGeminiPro31',       label: 'Gemini 3.1 Pro',       logoKey: 'gemini', premium: false },
+  { id: 'sfdc_ai__DefaultGPT52',                     label: 'GPT-5.2',              logoKey: 'openai', premium: false },
+  { id: 'sfdc_ai__DefaultGPT54',                     label: 'GPT-5.4',              logoKey: 'openai', premium: false },
+  { id: 'sfdc_ai__DefaultBedrockAnthropicClaude45Sonnet', label: 'Claude Sonnet 4.5', logoKey: 'claude', premium: false },
+  { id: 'sfdc_ai__DefaultBedrockAnthropicClaude45Opus',   label: 'Claude Opus 4.5',   logoKey: 'claude', premium: true  }
 ];
 
 const LOGO_MAP = { gemini: GEMINI_LOGO, openai: OPENAI_LOGO, claude: CLAUDE_LOGO };
